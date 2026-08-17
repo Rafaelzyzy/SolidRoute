@@ -1,3 +1,16 @@
+# SolidRoute Portal
+
+O **SolidRoute** é um sistema web Open Source de página única (SPA) criado para automatizar a gestão e a adoção de roteadores **Mikrotik** distribuídos em clientes via túneis **WireGuard**. 
+
+O portal reúne três funções: cadastro/registro dos roteadores já adotados, um gerador de script de adoção automatizado (para colar no Mikrotik) e gestão de usuários com acesso ao painel.
+
+---
+
+## 🏗️ Arquitetura
+
+A infraestrutura ideal do projeto é desacoplada. O gerador de scripts (SolidRoute) não precisa rodar na mesma máquina que o servidor VPN, garantindo total flexibilidade.
+
+```mermaid
 flowchart LR
     %% Configuração de Cores baseadas no seu UI
     classDef darkBox fill:#1E222B,stroke:#262B35,stroke-width:2px,color:#EDEEF1,rx:8,ry:8
