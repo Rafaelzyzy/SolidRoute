@@ -41,7 +41,27 @@ flowchart LR
 
 O backend nunca fala com o WG-Easy nem com o Mikrotik — a única ponte entre eles é você colando o script gerado.
 
-## Rodando
+## WireGuard (WG-Easy)
+
+O túnel VPN entre os Mikrotiks e o servidor é gerenciado pelo [WG-Easy](https://github.com/wg-easy/wg-easy), rodando em Docker. É o WG-Easy quem gera o par de chaves do servidor e cada peer, e disponibiliza a interface web onde você acompanha quem tá conectado.
+
+```bash
+docker run -d \
+  --name wg-easy \
+  -e WG_HOST=<seu-ddns-ou-ip-publico> \
+  -v ~/.wg-easy:/etc/wireguard \
+  -p 51820:51820/udp \
+  -p 51821:51821/tcp \
+  --cap-add=NET_ADMIN \
+  --cap-add=SYS_MODULE \
+  --sysctl="net.ipv4.conf.all.src_valid_mark=1" \
+  --sysctl="net.ipv4.ip_forward=1" \
+  ghcr.io/wg-easy/wg-easy
+```
+
+O Portal e o WG-Easy são duas aplicações independentes — o Portal não chama a API do WG-Easy nem sabe que ele existe. A ponte entre os dois é manual: você cria o peer no WG-Easy, pega a chave pública do servidor e a preshared key geradas lá, e cola esses valores no Gerador de Script do Portal.
+
+## Rodando o Portal
 
 ```bash
 npm install
