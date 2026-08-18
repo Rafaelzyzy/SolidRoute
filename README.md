@@ -85,9 +85,18 @@ O host e a porta do DDNS usados no túnel WireGuard não ficam em variável de a
 
 ## O que o script gerado faz
 
-No Mikrotik, o script cria a interface WireGuard, adiciona o peer com as chaves e o endpoint informados, adiciona a rota pra subnet da VPN, libera Winbox e o painel web só através do túnel (nada exposto direto na internet), e cria um scheduler que reaplica o endereço do peer a cada hora — isso cobre o caso do IP por trás do DDNS mudar.
+A tela "Gerador de Script" pede: IP do cliente na VPN, private key do cliente, preshared key, public key do servidor, host e porta do DDNS. Com isso, monta um `/system script` chamado `setup-smartstik` que faz, na ordem:
 
-Rodar o script de novo não duplica nada: ele atualiza a configuração existente em vez de criar tudo de novo.
+1. **Interface WireGuard** `wg-smartstik`, MTU 1420, com a private key do cliente. Se a interface já existir, só atualiza a chave em vez de recriar.
+2. **Endereço IP** na interface — por padrão `10.90.0.2/24`, mas o campo é editável pra cada roteador.
+3. **Peer** apontando pro servidor: public key, preshared key, `endpoint-address` = host do DDNS, `endpoint-port`, `allowed-address` = subnet fixa `10.90.0.0/24`, `persistent-keepalive=25s`. O peer é identificado pelo comment `SmartsTIK-server`, usado depois pelo scheduler.
+4. **Rota** pra subnet da VPN, com a interface WireGuard como gateway.
+5. **Firewall** — duas regras, restritas a `in-interface=wg-smartstik`: uma libera TCP/8291 (Winbox), outra libera TCP/8123 (o painel web do próprio Mikrotik). As duas são inseridas antes da primeira regra já existente no firewall (`place-before`), pra garantir que não fiquem atrás de algum `drop` genérico.
+6. **Scheduler** `SmartsTIK-DDNS`, rodando a cada 1 hora, que reaplica o `endpoint-address` do peer (busca pelo comment `SmartsTIK-server`). Isso existe porque o RouterOS resolve o hostname do DDNS só quando o peer é configurado — sem isso, se o IP por trás do DDNS mudar, o túnel fica apontando pro IP antigo até alguém mexer manualmente.
+
+No final, o script roda sozinho (`/system script run setup-smartstik`) e loga no sistema do Mikrotik que terminou.
+
+Colar o script de novo não duplica nada — ele checa se cada parte já existe (`:if ([:len [...]] = 0)`) e só atualiza o que já tá lá.
 
 ## Stack
 
