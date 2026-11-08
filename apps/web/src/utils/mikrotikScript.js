@@ -1,0 +1,28 @@
+export const generateMikrotikScript = ({
+    name,
+    wgIp,
+    privateKey,
+    presharedKey,
+    publicKey,
+    endpoint,
+    defaultPort = '51820',
+    configureWebfigService = false
+}) => {
+    const parts = endpoint ? endpoint.split(':') : ['127.0.0.1', defaultPort];
+    const endpointHost = parts[0];
+    const endpointPort = parts[1] || defaultPort;
+
+    // Garante que o endereço IP possua a máscara /24 e extrai a sub-rede dinamicamente (ex: 10.8.0.0/24)
+    const cleanIp = wgIp ? wgIp.split('/')[0].trim() : '10.8.0.2';
+    const mask = wgIp && wgIp.includes('/') ? wgIp.split('/')[1].trim() : '24';
+    const clientAddressWithMask = `${cleanIp}/${mask}`;
+
+    const octets = cleanIp.split('.');
+    const vpnSubnet = octets.length === 4 ? `${octets[0]}.${octets[1]}.${octets[2]}.0/${mask}` : '10.8.0.0/24';
+
+    const webfigServiceCmd = configureWebfigService ? ' /ip service set www port=8123 disabled=no;' : '';
+
+    const sourceContent = `:local clientPrivateKey \\"${privateKey}\\"; :local clientAddress \\"${clientAddressWithMask}\\"; :local serverPublicKey \\"${publicKey}\\"; :local presharedKey \\"${presharedKey}\\"; :local ifaceName \\"wg-solidroute\\"; :local ddnsHost \\"${endpointHost}\\"; :local ddnsPort ${endpointPort}; :local vpnSubnet \\"${vpnSubnet}\\"; :if ([:len [/interface wireguard find name=\\$ifaceName]] = 0) do={/interface wireguard add name=\\$ifaceName private-key=\\$clientPrivateKey mtu=1420 comment=\\"SolidRoute\\"} else={/interface wireguard set [find name=\\$ifaceName] private-key=\\$clientPrivateKey mtu=1420}; :if ([:len [/ip address find address=\\$clientAddress interface=\\$ifaceName]] = 0) do={/ip address add address=\\$clientAddress interface=\\$ifaceName comment=\\"SolidRoute\\"}; :if ([:len [/interface wireguard peers find interface=\\$ifaceName]] = 0) do={/interface wireguard peers add interface=\\$ifaceName public-key=\\$serverPublicKey preshared-key=\\$presharedKey endpoint-address=\\$ddnsHost endpoint-port=\\$ddnsPort allowed-address=\\$vpnSubnet persistent-keepalive=25s comment=\\"SolidRoute-server\\"} else={/interface wireguard peers set [find interface=\\$ifaceName] public-key=\\$serverPublicKey preshared-key=\\$presharedKey endpoint-address=\\$ddnsHost endpoint-port=\\$ddnsPort allowed-address=\\$vpnSubnet persistent-keepalive=25s}; :if ([:len [/ip route find dst-address=\\$vpnSubnet gateway=\\$ifaceName]] = 0) do={/ip route add dst-address=\\$vpnSubnet gateway=\\$ifaceName comment=\\"SolidRoute\\"}; :if ([:len [/ip firewall filter find comment=\\"SolidRoute-winbox\\"]] = 0) do={:if ([:len [/ip firewall filter find]] > 0) do={/ip firewall filter add chain=input in-interface=\\$ifaceName protocol=tcp dst-port=8291 action=accept comment=\\"SolidRoute-winbox\\" place-before=[:pick [/ip firewall filter find] 0]} else={/ip firewall filter add chain=input in-interface=\\$ifaceName protocol=tcp dst-port=8291 action=accept comment=\\"SolidRoute-winbox\\"}}; :if ([:len [/ip firewall filter find comment=\\"SolidRoute-www\\"]] = 0) do={:if ([:len [/ip firewall filter find]] > 0) do={/ip firewall filter add chain=input in-interface=\\$ifaceName protocol=tcp dst-port=8123 action=accept comment=\\"SolidRoute-www\\" place-before=[:pick [/ip firewall filter find] 0]} else={/ip firewall filter add chain=input in-interface=\\$ifaceName protocol=tcp dst-port=8123 action=accept comment=\\"SolidRoute-www\\"}}${webfigServiceCmd} :if ([:len [/system scheduler find name=\\"SolidRoute-DDNS\\"]] = 0) do={/system scheduler add name=\\"SolidRoute-DDNS\\" interval=1h on-event=\\"/interface wireguard peers set [find comment=\\\\\\"SolidRoute-server\\\\\\"] endpoint-address=\\\\\\"${endpointHost}\\\\\\"\\" comment=\\"SolidRoute-DDNS\\"} else={/system scheduler set [find name=\\"SolidRoute-DDNS\\"] interval=1h on-event=\\"/interface wireguard peers set [find comment=\\\\\\"SolidRoute-server\\\\\\"] endpoint-address=\\\\\\"${endpointHost}\\\\\\"\\"}; :log info \\"SolidRoute: VPN, Firewall e Scheduler DDNS configurados com sucesso!\\";`;
+
+    return `:if ([:len [/system script find name="setup-solidroute"]] > 0) do={/system script set [find name="setup-solidroute"] source="${sourceContent}"} else={/system script add name="setup-solidroute" source="${sourceContent}"}; /system script run setup-solidroute`;
+};

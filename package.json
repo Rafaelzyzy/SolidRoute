@@ -1,0 +1,15 @@
+{
+  "name": "solidroute",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Plataforma de provisionamento VPN e gerência remota para roteadores MikroTik",
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev:api": "npm --prefix apps/api start",
+    "dev:web": "npm --prefix apps/web run dev",
+    "build:web": "npm --prefix apps/web run build"
+  }
+}

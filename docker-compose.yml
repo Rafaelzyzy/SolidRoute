@@ -1,0 +1,53 @@
+services:
+  # O Servidor VPN WireGuard (WG-Easy v14)
+  wg-easy:
+    image: ghcr.io/wg-easy/wg-easy:14
+    container_name: wg-easy
+    environment:
+      - WG_HOST=${WG_HOST:-127.0.0.1}
+      - PASSWORD_HASH=${WG_PASSWORD_HASH}
+      - PORT=51821
+      - WG_PORT=51820
+      - WG_DEFAULT_ADDRESS=${WG_DEFAULT_ADDRESS:-10.8.0.x}
+    volumes:
+      - ./data/wg-easy:/etc/wireguard
+    ports:
+      - "51820:51820/udp"
+      - "127.0.0.1:51821:51821/tcp"
+      - "3000:3000/tcp"
+      - "${PROXY_PORT:-58123}:${PROXY_PORT:-58123}/tcp"
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1
+    restart: unless-stopped
+
+  # O Portal SolidRoute (Backend + Frontend + Proxy WebFig)
+  # Compartilha a pilha de rede do wg-easy (network_mode: "service:wg-easy")
+  # para enxergar diretamente a interface wg0 e alcançar os Mikrotiks no túnel VPN.
+  solidroute-portal:
+    build: .
+    container_name: solidroute-portal
+    network_mode: "service:wg-easy"
+    environment:
+      - PORT=3000
+      - PROXY_PORT=${PROXY_PORT:-58123}
+      - WEBFIG_PORT=${WEBFIG_PORT:-8123}
+      - WG_EASY_API_URL=http://127.0.0.1:51821
+      - WG_EASY_PASSWORD=${WG_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET:-}
+      - ADMIN_DEFAULT_EMAIL=${ADMIN_DEFAULT_EMAIL:-admin@solidroute.com}
+      - ADMIN_DEFAULT_PASSWORD=${ADMIN_DEFAULT_PASSWORD:-admin123}
+      - DATA_DIR=/app/data
+    volumes:
+      - ./data/solidroute:/app/data
+    depends_on:
+      - wg-easy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
