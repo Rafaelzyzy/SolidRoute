@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useContext, useCallback } from 'react';
 import { AuthContext } from '../contexts/AuthContext';
-import { ExternalLink, Router as RouterIcon, Search, Trash2, RefreshCw, AlertTriangle } from 'lucide-react';
+import { ExternalLink, Router as RouterIcon, Search, Trash2, RefreshCw, AlertTriangle, ArrowUp, ArrowDown } from 'lucide-react';
 
 export default function Dashboard() {
     const { token, proxyPort, apiFetch } = useContext(AuthContext);
@@ -9,6 +9,7 @@ export default function Dashboard() {
     const [syncing, setSyncing] = useState(false);
     const [wgUnreachable, setWgUnreachable] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [sortOrder, setSortOrder] = useState('asc');
 
     // Estados do Modal de Sincronização Seletiva
     const [syncModalOpen, setSyncModalOpen] = useState(false);
@@ -126,10 +127,22 @@ export default function Dashboard() {
         window.open(`http://${window.location.hostname}:${targetPort}`, '_blank');
     };
 
-    const filteredRouters = routers.filter(router =>
-        router.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (router.wg_ip && router.wg_ip.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
+    const toggleSortOrder = () => {
+        setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    };
+
+    const filteredRouters = routers
+        .filter(router =>
+            router.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (router.wg_ip && router.wg_ip.toLowerCase().includes(searchTerm.toLowerCase()))
+        )
+        .sort((a, b) => {
+            const comparison = (a.name || '').localeCompare(b.name || '', 'pt-BR', {
+                numeric: true,
+                sensitivity: 'base'
+            });
+            return sortOrder === 'asc' ? comparison : -comparison;
+        });
 
     const onlineCount = routers.filter(r => r.isOnline).length;
 
@@ -152,6 +165,25 @@ export default function Dashboard() {
                             className="w-full bg-darkBox border border-mkborder rounded pl-9 pr-3 py-2 text-sm text-white focus:outline-none focus:border-primary transition-colors shadow-sm"
                         />
                     </div>
+
+                    <button
+                        type="button"
+                        onClick={toggleSortOrder}
+                        title={sortOrder === 'asc' ? 'Ordenado de A a Z (clique para inverter para Z a A)' : 'Ordenado de Z a A (clique para inverter para A a Z)'}
+                        className="bg-darkBox hover:bg-[#3E3E42] text-gray-200 border border-mkborder px-3 py-2 rounded flex items-center gap-2 text-xs font-bold transition-colors shadow-sm"
+                    >
+                        {sortOrder === 'asc' ? (
+                            <>
+                                <ArrowUp size={15} className="text-primary" />
+                                <span>A - Z</span>
+                            </>
+                        ) : (
+                            <>
+                                <ArrowDown size={15} className="text-primary" />
+                                <span>Z - A</span>
+                            </>
+                        )}
+                    </button>
 
                     <button
                         onClick={handleOpenSyncPreview}
@@ -208,7 +240,27 @@ export default function Dashboard() {
                     <table className="w-full text-left border-collapse text-sm">
                         <thead>
                             <tr className="bg-[#3E3E42] border-b border-mkborder">
-                                <th className="py-2.5 px-4 font-bold text-gray-200">Nome do Equipamento</th>
+                                <th className="py-2.5 px-4 font-bold text-gray-200">
+                                    <button
+                                        type="button"
+                                        onClick={toggleSortOrder}
+                                        title={sortOrder === 'asc' ? 'Ordenar de Z a A' : 'Ordenar de A a Z'}
+                                        className="flex items-center gap-2 hover:text-white transition-colors focus:outline-none group"
+                                    >
+                                        <span>Nome do Equipamento</span>
+                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-darkBg/60 border border-mkborder text-[11px] text-primary font-bold group-hover:border-primary/50 transition-colors">
+                                            {sortOrder === 'asc' ? (
+                                                <>
+                                                    A-Z <ArrowUp size={12} />
+                                                </>
+                                            ) : (
+                                                <>
+                                                    Z-A <ArrowDown size={12} />
+                                                </>
+                                            )}
+                                        </span>
+                                    </button>
+                                </th>
                                 <th className="py-2.5 px-4 font-bold text-gray-200">IP na VPN</th>
                                 <th className="py-2.5 px-4 font-bold text-gray-200">Data de Adoção</th>
                                 <th className="py-2.5 px-4 font-bold text-gray-200 text-right">Ações</th>
