@@ -140,8 +140,7 @@ Ao adotar um equipamento, o código gerado cria e executa um script chamado `set
 2. **Endereçamento e Rota:** Atribui o IP da VPN na interface e adiciona a rota para a sub-rede do túnel.
 3. **Peer do Servidor:** Configura chave pública, *preshared-key*, *endpoint* e `persistent-keepalive=25s` para atravessar NAT/CGNAT sem perder a sessão.
 4. **Regras de Firewall no Topo:** Insere no topo da cadeia `input` (restrito exclusivamente ao tráfego que entra pela interface `wg-solidroute`) a liberação das portas `8291/tcp` (Winbox) e `8123/tcp` (WebFig), evitando que alguma regra de `drop` geral do cliente bloqueie a gerência.
-5. **Serviço HTTP/WebFig (Opcional):** Caso você marque a opção na tela de adoção, o script também ajusta `/ip service set www port=8123 disabled=no`.
-6. **Scheduler de DDNS:** Cria uma tarefa agendada (`SolidRoute-DDNS`) que roda a cada 1 hora atualizando a resolução do hostname do servidor, garantindo reconexão automática caso o seu IP público mude.
+5. **Scheduler de DDNS:** Cria uma tarefa agendada (`SolidRoute-DDNS`) que roda a cada 1 hora atualizando a resolução do hostname do servidor, garantindo reconexão automática caso o seu IP público mude.
 
 ---
 

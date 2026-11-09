@@ -6,7 +6,6 @@ import { Copy, Terminal, CheckCircle2, TerminalSquare, AlertTriangle } from 'luc
 export default function Adoption() {
     const { apiFetch } = useContext(AuthContext);
     const [routerName, setRouterName] = useState('');
-    const [configureWebfigService, setConfigureWebfigService] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
@@ -52,9 +51,7 @@ export default function Adoption() {
         }
     };
 
-    const generatedCode = scriptParams
-        ? generateMikrotikScript({ ...scriptParams, configureWebfigService })
-        : '';
+    const generatedCode = scriptParams ? generateMikrotikScript(scriptParams) : '';
 
     const isLocalhostEndpoint = scriptParams?.endpoint && scriptParams.endpoint.startsWith('127.0.0.1');
 
@@ -121,18 +118,6 @@ export default function Adoption() {
                                         disabled={loading}
                                     />
                                 </div>
-
-                                <label className="flex items-start gap-2.5 text-xs text-gray-300 cursor-pointer select-none bg-darkerBox p-2.5 rounded border border-mkborder">
-                                    <input
-                                        type="checkbox"
-                                        checked={configureWebfigService}
-                                        onChange={e => setConfigureWebfigService(e.target.checked)}
-                                        className="mt-0.5 accent-primary"
-                                    />
-                                    <span>
-                                        Definir porta do serviço HTTP (<code className="font-mono text-primary">www</code>) para <code className="font-mono text-primary">8123</code> no script
-                                    </span>
-                                </label>
 
                                 <div className="bg-darkerBox border-l-2 border-primary/50 p-3 text-xs text-gray-400">
                                     Ao clicar em gerar, o portal comunicará com o WG-Easy em background para criar as chaves e definir o IP IPv4 de VPN automaticamente.
