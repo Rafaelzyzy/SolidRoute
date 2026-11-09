@@ -122,9 +122,13 @@ export default function Dashboard() {
     const handleOpenWebFig = (wgIp) => {
         const ip = wgIp.split('/')[0].trim();
         const targetPort = proxyPort || 58123;
+        const cacheBuster = Date.now();
         document.cookie = `proxyTarget=${encodeURIComponent(ip)}; path=/; max-age=86400; SameSite=Lax`;
         document.cookie = `proxyAuth=${encodeURIComponent(token)}; path=/; max-age=86400; SameSite=Lax`;
-        window.open(`http://${window.location.hostname}:${targetPort}`, '_blank');
+        window.open(
+            `http://${window.location.hostname}:${targetPort}/__solidroute_open?target=${encodeURIComponent(ip)}&t=${cacheBuster}`,
+            '_blank'
+        );
     };
 
     const toggleSortOrder = () => {

@@ -78,6 +78,17 @@ const dynamicWebfigProxy = createProxyMiddleware({
         return `http://${req.targetRouterIp}:${WEBFIG_PORT}`;
     },
     onProxyReq: (proxyReq, req) => {
+        // Se a URL inicial contiver o cache-buster ?_sr=..., encaminha como / limpo para o MikroTik
+        if (req.url && req.url.startsWith('/?_sr=')) {
+            proxyReq.path = '/';
+        }
+
+        // Remove cabeçalhos condicionais de cache para impedir 304 Not Modified entre roteadores diferentes
+        proxyReq.removeHeader('if-modified-since');
+        proxyReq.removeHeader('if-none-match');
+        proxyReq.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        proxyReq.setHeader('Pragma', 'no-cache');
+
         // Remove os cookies internos do SolidRoute (proxyAuth e proxyTarget) antes de encaminhar ao Mikrotik
         const rawCookie = req.headers.cookie;
         if (rawCookie) {
@@ -92,6 +103,15 @@ const dynamicWebfigProxy = createProxyMiddleware({
                 proxyReq.removeHeader('Cookie');
             }
         }
+    },
+    onProxyRes: (proxyRes) => {
+        // Neutraliza o Cache-Control: max-age=31536000 enviado pelo RouterOS v7 antigo
+        delete proxyRes.headers['etag'];
+        delete proxyRes.headers['last-modified'];
+        proxyRes.headers['cache-control'] = 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0';
+        proxyRes.headers['pragma'] = 'no-cache';
+        proxyRes.headers['expires'] = '0';
+        proxyRes.headers['surrogate-control'] = 'no-store';
     },
     onError: (err, req, res) => {
         console.error('[Proxy WebFig] Erro ao conectar no Mikrotik:', err.message);
@@ -109,7 +129,9 @@ const dynamicWebfigProxy = createProxyMiddleware({
 proxyApp.use('/', (req, res, next) => {
     const cookies = parseCookies(req.headers.cookie);
     const token = cookies.proxyAuth;
-    const targetIp = cookies.proxyTarget ? cookies.proxyTarget.split('/')[0].trim() : null;
+    const queryTarget = typeof req.query?.target === 'string' ? req.query.target.split('/')[0].trim() : null;
+    const cookieTarget = cookies.proxyTarget ? cookies.proxyTarget.split('/')[0].trim() : null;
+    const targetIp = queryTarget || cookieTarget;
 
     if (!token) {
         return res.status(401).send(
@@ -155,6 +177,76 @@ proxyApp.use('/', (req, res, next) => {
             '<p>O endereço IP solicitado não pertence a nenhum roteador adotado no painel SolidRoute.</p>' +
             '</body></html>'
         );
+    }
+
+    // Rota de preparação de sessão limpa: limpa sessionStorage/localStorage da porta 58123 e invalida cache antigo do navegador
+    if (req.path === '/__solidroute_open') {
+        const cookiesToSet = [
+            `proxyTarget=${encodeURIComponent(targetIp)}; Path=/; Max-Age=86400; SameSite=Lax`
+        ];
+        Object.keys(cookies).forEach(cookieName => {
+            if (cookieName !== 'proxyAuth' && cookieName !== 'proxyTarget') {
+                cookiesToSet.push(`${cookieName}=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT`);
+            }
+        });
+
+        res.setHeader('Set-Cookie', cookiesToSet);
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+
+        return res.status(200).send(`<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Conectando ao WebFig (${targetIp})...</title>
+<style>
+  body { background: #1E1E1E; color: #EDEEF1; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+  .box { background: #2D2D30; border: 1px solid #3E3E42; border-radius: 6px; padding: 24px 32px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.4); }
+  .spinner { width: 28px; height: 28px; border: 3px solid #3E3E42; border-top-color: #00D166; border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 14px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .title { font-size: 14px; font-weight: bold; margin-bottom: 4px; }
+  .sub { font-size: 12px; color: #9CA3AF; font-family: monospace; }
+</style>
+</head>
+<body>
+  <div class="box">
+    <div class="spinner"></div>
+    <div class="title">Iniciando nova sessão WebFig...</div>
+    <div class="sub">Destino: ${targetIp}</div>
+  </div>
+  <script>
+    (async function() {
+      try { window.sessionStorage.clear(); } catch (e) {}
+      try { window.localStorage.clear(); } catch (e) {}
+      try { window.name = ''; } catch (e) {}
+
+      // Força o navegador a sobrescrever qualquer cache antigo (max-age=31536000) dos caminhos comuns do RouterOS
+      const pathsToRefresh = [
+        '/',
+        '/webfig/',
+        '/script.js',
+        '/mikrotik_logo.png',
+        '/mikrotik_logo.svg',
+        '/winbox.png',
+        '/green.png',
+        '/license.png',
+        '/help.png',
+        '/favicon.png',
+        '/favicon.svg'
+      ];
+
+      try {
+        await Promise.allSettled(
+          pathsToRefresh.map(p => fetch(p, { method: 'GET', cache: 'reload', credentials: 'same-origin' }))
+        );
+      } catch (e) {}
+
+      window.location.replace('/?_sr=' + Date.now());
+    })();
+  </script>
+</body>
+</html>`);
     }
 
     req.targetRouterIp = targetIp;
